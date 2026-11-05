@@ -84,6 +84,20 @@ input[type=range]{width:100%;accent-color:var(--accent);height:18px;margin:0}
 select,input[type=text]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
 input[type=color]{width:44px;height:28px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);padding:2px;cursor:pointer}
 input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.swatch{width:44px;height:26px;border-radius:7px;border:1px solid #ffffff38;cursor:pointer;box-shadow:inset 0 0 0 2px #0003;padding:0;flex:none}
+.swatch:hover{border-color:#fff8}
+.picker{position:fixed;z-index:60;width:236px;background:#1d1d24;border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 18px 50px #000b}
+.picker .sv{position:relative;height:150px;border-radius:8px;cursor:crosshair;touch-action:none;background-image:linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,rgba(255,255,255,0))}
+.picker .svk,.picker .huek{position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #000a;transform:translate(-50%,-50%);pointer-events:none}
+.picker .hue{position:relative;height:14px;margin-top:12px;border-radius:7px;cursor:pointer;touch-action:none;background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}
+.picker .huek{top:50%}
+.picker .prow{display:flex;gap:8px;align-items:center;margin-top:12px}
+.picker .pv{width:30px;height:30px;border-radius:7px;border:1px solid #fff3;flex:none}
+.picker .phex{flex:1;min-width:0;width:auto;font-family:ui-monospace,Menlo,monospace;text-transform:lowercase}
+.picker .psw{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:10px}
+.picker .psw button{aspect-ratio:1;border-radius:5px;border:1px solid #fff2;cursor:pointer;padding:0}
+.picker .psw button:hover{transform:scale(1.12)}
+.picker .psw .pick{background:var(--panel2);color:var(--text);font-size:14px;line-height:1}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:var(--panel2);padding:6px 10px;border-radius:999px;cursor:pointer;font-size:13px}
@@ -92,6 +106,12 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .pcard{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:5px 5px 7px;cursor:pointer;text-align:center;font-size:11.5px;line-height:1.25;color:var(--text)}
 .pcard canvas{width:100%;aspect-ratio:1;border-radius:7px;display:block;margin-bottom:6px}
+.pcard{position:relative}
+.pdel{position:absolute;top:8px;right:8px;background:#000b;color:#fff;border:0;border-radius:6px;font-size:11px;padding:2px 6px;cursor:pointer;opacity:0;transition:opacity .15s}
+.pcard:hover .pdel,.pdel.armed,.pdel:focus{opacity:1}
+.pdel.armed{background:#e5484d}
+.pempty{grid-column:1/-1;margin:4px 0}
+.savebox{margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
 .pcard:hover{border-color:var(--accent);transform:translateY(-1px)}
 .layers{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
 .layer{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--panel2)}
@@ -187,6 +207,11 @@ dialog h3{margin:0 0 4px;font:700 26px Caveat,cursive}
         <div class="chips" id="presetCats"></div>
         <div class="pgrid" id="presets"></div>
         <label class="field inline" style="margin:10px 0 0"><span class="muted" style="margin:0">Add on top of current layers instead of replacing</span><input type="checkbox" id="presetAdd"></label>
+        <button class="btn small wide" id="btnSavePreset" style="margin-top:4px">💾 Save current as preset</button>
+        <div class="savebox hidden" id="saveBox">
+          <input type="text" id="presetName" maxlength="40" placeholder="Preset name" aria-label="Preset name">
+          <div class="row"><button class="btn small ghost" id="saveCancel">Cancel</button><span class="spacer"></span><button class="btn small primary" id="saveOk">Save</button></div>
+        </div>
       </div>
       <div id="groupControls"></div>
     </div>
@@ -218,6 +243,11 @@ dialog h3{margin:0 0 4px;font:700 26px Caveat,cursive}
     <div class="pane" id="pane-look"><div id="lookFields"></div></div>
 
     <div class="pane" id="pane-export">
+      <div class="sec">
+        <h4>Loop</h4>
+        <p class="muted">How long one seamless loop of the exported video/GIF is. Motion speeds are nudged very slightly on export so everything lines up at the loop point.</p>
+        <div id="loopFields"></div>
+      </div>
       <div class="sec">
         <h4>Still image</h4>
         <button class="btn wide" id="btnPng">Download PNG</button>
@@ -311,31 +341,31 @@ const DEFAULT_GROUP = {
   layout: 'ring', cx: 0.5, cy: 0.5, rx: 0.47, ry: 0.42, tilt: -4, jitter: 0.45,
   hole: 0.35, spacing: 0.13, stagger: true, drift: 'diag',
   depth: 'wrap', backScale: 0.85, backFade: 0,
-  motion: 'swing', swingAmt: 22, speed: 1, spinDir: 1,
+  motion: 'swing', swingAmt: 22, speed: 0.25, spinDir: 1,
   selfRot: 'wobble', selfRotAmt: 10, twinkle: 0.08, bob: 0, boil: true, boilFps: 5,
 };
 const STILL = { motion: 'still', selfRot: 'none', twinkle: 0, bob: 0, boil: false };
-const BASE_SPARKLES = { shape: 'mixed', style: 'fill', color: '#111111', mixColors: false, glow: 0, count: 12, size: 0.085, sizeVar: 0.55, thick: 0.26, wobble: 0.35, rotVar: 0.5, layout: 'ring', cx: .5, cy: .5, rx: 0.47, ry: 0.42, tilt: -4, jitter: 0.45, depth: 'wrap', backScale: 0.85, backFade: 0, motion: 'swing', swingAmt: 22, speed: 1, selfRot: 'wobble', selfRotAmt: 10, twinkle: 0.08, bob: 0, boil: true, boilFps: 5 };
+const BASE_SPARKLES = { shape: 'mixed', style: 'fill', color: '#111111', mixColors: false, glow: 0, count: 12, size: 0.085, sizeVar: 0.55, thick: 0.26, wobble: 0.35, rotVar: 0.5, layout: 'ring', cx: .5, cy: .5, rx: 0.47, ry: 0.42, tilt: -4, jitter: 0.45, depth: 'wrap', backScale: 0.85, backFade: 0, motion: 'swing', swingAmt: 22, speed: 0.25, selfRot: 'wobble', selfRotAmt: 10, twinkle: 0.08, bob: 0, boil: true, boilFps: 5 };
 const PRESET_CATS = [
   { name: '✦ Orbits', presets: [
     { name: 'Black sparkles', layers: [BASE_SPARKLES] },
-    { name: 'Gold halo', layers: [{ shape: 'star4', color: '#ffd166', color2: '#fff4c9', mixColors: true, glow: 0.6, glowColor: '#ffbf1f', count: 14, size: 0.035, sizeVar: 0.5, thick: 0.22, wobble: 0.15, rotVar: 0, layout: 'ring', cx: .5, cy: .2, rx: .17, ry: .045, tilt: 0, jitter: .15, depth: 'wrap', backScale: .6, backFade: .35, motion: 'spin', speed: 1, spinDir: 1, selfRot: 'spin', twinkle: .3, bob: 0, boil: false }] },
-    { name: 'Love orbit', layers: [{ shape: 'heart', style: 'both', color: '#ff4d8d', color2: '#ff9ec4', mixColors: true, strokeColor: '#ffffff', strokeWidth: 0.1, count: 9, size: .06, sizeVar: .4, wobble: .3, rotVar: .3, layout: 'ring', cx: .5, cy: .42, rx: .4, ry: .12, tilt: -8, jitter: .2, depth: 'wrap', backScale: .6, backFade: .2, motion: 'spin', speed: 1, spinDir: -1, selfRot: 'wobble', selfRotAmt: 15, twinkle: .1, bob: .3, boil: false }] },
-    { name: 'Comic pop', layers: [{ shape: 'star8', style: 'both', color: '#ffe14d', color2: '#ff5f5f', mixColors: true, strokeColor: '#111111', strokeWidth: 0.12, count: 8, size: .08, sizeVar: .5, thick: .5, wobble: .4, rotVar: .8, layout: 'ring', rx: .44, ry: .36, tilt: 0, jitter: .4, depth: 'wrap', backScale: .8, motion: 'swing', swingAmt: 18, speed: 2, selfRot: 'wobble', selfRotAmt: 20, twinkle: .15, boil: true, boilFps: 6 }] },
-    { name: 'Saturn ring', layers: [{ shape: 'dot', color: '#ffffff', color2: '#bfe3ff', mixColors: true, wobble: 0, count: 30, size: .016, sizeVar: .5, rotVar: 0, layout: 'ring', cx: .5, cy: .55, rx: .48, ry: .08, tilt: -12, jitter: .15, depth: 'wrap', backScale: .55, backFade: .45, motion: 'spin', speed: 1, spinDir: 1, selfRot: 'none', twinkle: .2, glow: .6, glowColor: '#9fd3ff', boil: false }] },
+    { name: 'Gold halo', layers: [{ shape: 'star4', color: '#ffd166', color2: '#fff4c9', mixColors: true, glow: 0.6, glowColor: '#ffbf1f', count: 14, size: 0.035, sizeVar: 0.5, thick: 0.22, wobble: 0.15, rotVar: 0, layout: 'ring', cx: .5, cy: .2, rx: .17, ry: .045, tilt: 0, jitter: .15, depth: 'wrap', backScale: .6, backFade: .35, motion: 'spin', speed: 0.25, spinDir: 1, selfRot: 'spin', twinkle: .3, bob: 0, boil: false }] },
+    { name: 'Love orbit', layers: [{ shape: 'heart', style: 'both', color: '#ff4d8d', color2: '#ff9ec4', mixColors: true, strokeColor: '#ffffff', strokeWidth: 0.1, count: 9, size: .06, sizeVar: .4, wobble: .3, rotVar: .3, layout: 'ring', cx: .5, cy: .42, rx: .4, ry: .12, tilt: -8, jitter: .2, depth: 'wrap', backScale: .6, backFade: .2, motion: 'spin', speed: 0.25, spinDir: -1, selfRot: 'wobble', selfRotAmt: 15, twinkle: .1, bob: .3, boil: false }] },
+    { name: 'Comic pop', layers: [{ shape: 'star8', style: 'both', color: '#ffe14d', color2: '#ff5f5f', mixColors: true, strokeColor: '#111111', strokeWidth: 0.12, count: 8, size: .08, sizeVar: .5, thick: .5, wobble: .4, rotVar: .8, layout: 'ring', rx: .44, ry: .36, tilt: 0, jitter: .4, depth: 'wrap', backScale: .8, motion: 'swing', swingAmt: 18, speed: 0.5, selfRot: 'wobble', selfRotAmt: 20, twinkle: .15, boil: true, boilFps: 6 }] },
+    { name: 'Saturn ring', layers: [{ shape: 'dot', color: '#ffffff', color2: '#bfe3ff', mixColors: true, wobble: 0, count: 30, size: .016, sizeVar: .5, rotVar: 0, layout: 'ring', cx: .5, cy: .55, rx: .48, ry: .08, tilt: -12, jitter: .15, depth: 'wrap', backScale: .55, backFade: .45, motion: 'spin', speed: 0.25, spinDir: 1, selfRot: 'none', twinkle: .2, glow: .6, glowColor: '#9fd3ff', boil: false }] },
   ] },
   { name: '▦ Patterns', presets: [
     { name: 'Star wallpaper', layers: [{ shape: 'classic', color: '#111111', wobble: .04, thick: .15, layout: 'grid', spacing: .13, stagger: true, jitter: .12, size: .045, sizeVar: .12, rotVar: .25, depth: 'behind', ...STILL }] },
     { name: 'Polka dots', layers: [{ shape: 'dot', color: '#ff1a1a', wobble: 0, layout: 'grid', spacing: .17, stagger: true, jitter: 0, size: .05, sizeVar: 0, rotVar: 0, depth: 'behind', ...STILL }] },
-    { name: 'Drifting stars', layers: [{ shape: 'classic', color: '#ffffff', wobble: .05, thick: .15, layout: 'grid', spacing: .12, stagger: true, jitter: .15, size: .03, sizeVar: .2, rotVar: .3, depth: 'behind', motion: 'spin', drift: 'diag', speed: 1, selfRot: 'none', twinkle: .1, bob: 0, boil: false }] },
-    { name: 'Heart wallpaper', layers: [{ shape: 'heart', color: '#ff4d8d', color2: '#ffb3d1', mixColors: true, wobble: .2, layout: 'grid', spacing: .12, stagger: true, size: .035, sizeVar: .2, rotVar: .35, jitter: .2, depth: 'behind', motion: 'swing', swingAmt: 30, speed: 1, selfRot: 'wobble', selfRotAmt: 12, twinkle: 0, bob: 0, boil: true, boilFps: 4 }] },
+    { name: 'Drifting stars', layers: [{ shape: 'classic', color: '#ffffff', wobble: .05, thick: .15, layout: 'grid', spacing: .12, stagger: true, jitter: .15, size: .03, sizeVar: .2, rotVar: .3, depth: 'behind', motion: 'spin', drift: 'diag', speed: 0.25, selfRot: 'none', twinkle: .1, bob: 0, boil: false }] },
+    { name: 'Heart wallpaper', layers: [{ shape: 'heart', color: '#ff4d8d', color2: '#ffb3d1', mixColors: true, wobble: .2, layout: 'grid', spacing: .12, stagger: true, size: .035, sizeVar: .2, rotVar: .35, jitter: .2, depth: 'behind', motion: 'swing', swingAmt: 30, speed: 0.25, selfRot: 'wobble', selfRotAmt: 12, twinkle: 0, bob: 0, boil: true, boilFps: 4 }] },
     { name: 'Sparkle field', layers: [{ shape: 'star4', color: '#ffffff', color2: '#ffe9a8', mixColors: true, thick: .18, wobble: .15, glow: .6, glowColor: '#ffffff', layout: 'grid', spacing: .09, jitter: .9, size: .02, sizeVar: .9, rotVar: .2, depth: 'wrap', backScale: 1, motion: 'still', selfRot: 'none', twinkle: .5, bob: 0, boil: false }] },
   ] },
   { name: '☁ Clouds', presets: [
-    { name: 'Pink star pop', layers: [{ shape: 'classic', color: '#ff1fb4', wobble: .05, thick: .18, layout: 'cloud', cx: .5, cy: .5, rx: .55, ry: .48, tilt: 0, hole: .3, jitter: 0, count: 22, size: .07, sizeVar: 1, rotVar: .5, depth: 'wrap', backScale: 1, backFade: 0, motion: 'swing', swingAmt: 6, speed: 1, selfRot: 'wobble', selfRotAmt: 6, twinkle: .04, bob: 0, boil: false }] },
+    { name: 'Pink star pop', layers: [{ shape: 'classic', color: '#ff1fb4', wobble: .05, thick: .18, layout: 'cloud', cx: .5, cy: .5, rx: .55, ry: .48, tilt: 0, hole: .3, jitter: 0, count: 22, size: .07, sizeVar: 1, rotVar: .5, depth: 'wrap', backScale: 1, backFade: 0, motion: 'swing', swingAmt: 6, speed: 0.25, selfRot: 'wobble', selfRotAmt: 6, twinkle: .04, bob: 0, boil: false }] },
     { name: 'Confetti', layers: [
-      { shape: 'dot', color: '#ffd23f', color2: '#3fa7ff', mixColors: true, wobble: .3, layout: 'cloud', count: 30, size: .014, sizeVar: .6, rx: .6, ry: .55, tilt: 0, hole: .2, depth: 'wrap', backScale: .8, motion: 'spin', speed: 1, spinDir: 1, selfRot: 'none', twinkle: 0, bob: .6, boil: false },
-      { shape: 'star4', color: '#ff4fa3', color2: '#3ddc97', mixColors: true, thick: .3, wobble: .2, layout: 'cloud', count: 22, size: .02, sizeVar: .6, rx: .6, ry: .55, tilt: 0, hole: .2, depth: 'wrap', backScale: .8, motion: 'spin', speed: 1, spinDir: -1, selfRot: 'spin', twinkle: .1, bob: .4, boil: false }] },
+      { shape: 'dot', color: '#ffd23f', color2: '#3fa7ff', mixColors: true, wobble: .3, layout: 'cloud', count: 30, size: .014, sizeVar: .6, rx: .6, ry: .55, tilt: 0, hole: .2, depth: 'wrap', backScale: .8, motion: 'spin', speed: 0.25, spinDir: 1, selfRot: 'none', twinkle: 0, bob: .6, boil: false },
+      { shape: 'star4', color: '#ff4fa3', color2: '#3ddc97', mixColors: true, thick: .3, wobble: .2, layout: 'cloud', count: 22, size: .02, sizeVar: .6, rx: .6, ry: .55, tilt: 0, hole: .2, depth: 'wrap', backScale: .8, motion: 'spin', speed: 0.25, spinDir: -1, selfRot: 'spin', twinkle: .1, bob: .4, boil: false }] },
     { name: 'Bubbles', layers: [{ shape: 'dot', style: 'outline', color: '#ffffff', strokeWidth: .07, wobble: .12, glow: .25, glowColor: '#bfe6ff', layout: 'cloud', count: 18, size: .04, sizeVar: .9, rx: .55, ry: .5, tilt: 0, hole: .25, depth: 'wrap', backScale: .8, motion: 'swing', swingAmt: 10, selfRot: 'none', twinkle: .06, bob: .9, boil: false }] },
     { name: 'Moon & stars', layers: [
       { shape: 'moon', color: '#ffd84d', wobble: .2, layout: 'cloud', count: 4, size: .06, sizeVar: .4, rx: .55, ry: .5, tilt: 0, hole: .4, depth: 'wrap', backScale: .9, motion: 'swing', swingAmt: 8, selfRot: 'wobble', selfRotAmt: 10, twinkle: 0, boil: true, boilFps: 4 },
@@ -344,11 +374,11 @@ const PRESET_CATS = [
   ] },
   { name: '💥 Big shapes', presets: [
     { name: 'Painted starburst', layers: [
-      { shape: 'star4', color: '#111111', style: 'painted', thick: .1, wobble: .5, layout: 'spot', cx: .5, cy: .42, size: .45, angle: 14, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'swing', swingAmt: 3, speed: 1, selfRot: 'none', twinkle: .015, bob: 0, boil: true, boilFps: 4 },
-      { shape: 'star8', color: '#e8141b', style: 'painted', thick: .3, wobble: .45, layout: 'spot', cx: .5, cy: .42, size: .36, angle: -6, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'swing', swingAmt: 3, spinDir: -1, speed: 1, selfRot: 'none', twinkle: .02, bob: 0, boil: true, boilFps: 4 }] },
+      { shape: 'star4', color: '#111111', style: 'painted', thick: .1, wobble: .5, layout: 'spot', cx: .5, cy: .42, size: .45, angle: 14, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'swing', swingAmt: 3, speed: 0.25, selfRot: 'none', twinkle: .015, bob: 0, boil: true, boilFps: 4 },
+      { shape: 'star8', color: '#e8141b', style: 'painted', thick: .3, wobble: .45, layout: 'spot', cx: .5, cy: .42, size: .36, angle: -6, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'swing', swingAmt: 3, spinDir: -1, speed: 0.25, selfRot: 'none', twinkle: .02, bob: 0, boil: true, boilFps: 4 }] },
     { name: 'Sunburst', layers: [
-      { shape: 'star8', color: '#ff8a00', thick: .45, wobble: .1, layout: 'spot', cx: .5, cy: .33, size: .42, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'spin', speed: 1, spinDir: 1, selfRot: 'none', glow: .3, glowColor: '#ffb347', twinkle: 0, bob: 0, boil: false },
-      { shape: 'star8', color: '#ffd23f', thick: .5, wobble: .1, layout: 'spot', cx: .5, cy: .33, size: .32, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'spin', speed: 1, spinDir: -1, selfRot: 'none', twinkle: 0, bob: 0, boil: false }] },
+      { shape: 'star8', color: '#ff8a00', thick: .45, wobble: .1, layout: 'spot', cx: .5, cy: .33, size: .42, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'spin', speed: 0.25, spinDir: 1, selfRot: 'none', glow: .3, glowColor: '#ffb347', twinkle: 0, bob: 0, boil: false },
+      { shape: 'star8', color: '#ffd23f', thick: .5, wobble: .1, layout: 'spot', cx: .5, cy: .33, size: .32, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'spin', speed: 0.25, spinDir: -1, selfRot: 'none', twinkle: 0, bob: 0, boil: false }] },
     { name: 'Lime blob', layers: [{ shape: 'blob', color: '#c6ff3d', wobble: .6, layout: 'spot', cx: .5, cy: .45, size: .42, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'still', selfRot: 'wobble', selfRotAmt: 3, twinkle: .02, bob: 0, boil: true, boilFps: 3 }] },
     { name: 'Scribble aura', layers: [{ shape: 'scribble', color: '#2b6bff', style: 'sketch', strokeWidth: .035, wobble: .6, layout: 'spot', cx: .5, cy: .45, size: .45, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', ...STILL, boil: true, boilFps: 6 }] },
     { name: 'Heartbeat', layers: [{ shape: 'heart', color: '#ff2d55', style: 'both', strokeColor: '#ffffff', strokeWidth: .05, wobble: .25, layout: 'spot', cx: .5, cy: .42, size: .42, count: 1, sizeVar: 0, rotVar: 0, depth: 'behind', motion: 'still', selfRot: 'none', twinkle: .06, bob: 0, boil: true, boilFps: 3 }] },
@@ -357,15 +387,15 @@ const PRESET_CATS = [
     { name: 'Latte doodles', layers: [
       { shape: 'spiral', color: '#4f86e8', strokeWidth: .1, wobble: .35, layout: 'spot', cx: .55, cy: .72, size: .13, count: 1, sizeVar: 0, rotVar: 0, depth: 'front', motion: 'still', selfRot: 'wobble', selfRotAmt: 4, twinkle: 0, bob: 0, boil: true, boilFps: 5 },
       { shape: 'asterisk', color: '#7fd3e6', strokeWidth: .14, wobble: .35, layout: 'spot', cx: .5, cy: .2, size: .1, count: 1, sizeVar: 0, rotVar: 0, depth: 'front', motion: 'still', selfRot: 'wobble', selfRotAmt: 4, twinkle: 0, bob: 0, boil: true, boilFps: 5 }] },
-    { name: 'Chalk doodles', layers: [{ shape: 'mixed', style: 'sketch', color: '#ffffff', strokeWidth: 0.07, count: 10, size: .09, sizeVar: .4, thick: .3, wobble: .7, rotVar: .6, layout: 'ring', rx: .45, ry: .4, tilt: 8, jitter: .5, depth: 'wrap', backScale: .85, motion: 'swing', swingAmt: 30, speed: 1, selfRot: 'wobble', selfRotAmt: 12, twinkle: 0, bob: 0, boil: true, boilFps: 8 }] },
-    { name: 'Squiggle orbit', layers: [{ shape: 'squiggle', color: '#ffffff', strokeWidth: .12, wobble: .4, layout: 'ring', count: 8, size: .06, sizeVar: .3, rotVar: 1, rx: .45, ry: .38, tilt: 0, jitter: .4, depth: 'wrap', motion: 'spin', speed: 1, spinDir: 1, selfRot: 'wobble', selfRotAmt: 20, twinkle: 0, bob: 0, boil: true, boilFps: 6 }] },
+    { name: 'Chalk doodles', layers: [{ shape: 'mixed', style: 'sketch', color: '#ffffff', strokeWidth: 0.07, count: 10, size: .09, sizeVar: .4, thick: .3, wobble: .7, rotVar: .6, layout: 'ring', rx: .45, ry: .4, tilt: 8, jitter: .5, depth: 'wrap', backScale: .85, motion: 'swing', swingAmt: 30, speed: 0.25, selfRot: 'wobble', selfRotAmt: 12, twinkle: 0, bob: 0, boil: true, boilFps: 8 }] },
+    { name: 'Squiggle orbit', layers: [{ shape: 'squiggle', color: '#ffffff', strokeWidth: .12, wobble: .4, layout: 'ring', count: 8, size: .06, sizeVar: .3, rotVar: 1, rx: .45, ry: .38, tilt: 0, jitter: .4, depth: 'wrap', motion: 'spin', speed: 0.25, spinDir: 1, selfRot: 'wobble', selfRotAmt: 20, twinkle: 0, bob: 0, boil: true, boilFps: 6 }] },
     { name: 'Doodle hearts', layers: [{ shape: 'heart', style: 'sketch', color: '#ff3b3b', strokeWidth: .08, wobble: .6, layout: 'ring', count: 9, size: .06, sizeVar: .5, rotVar: .5, rx: .46, ry: .4, tilt: 0, jitter: .5, depth: 'wrap', motion: 'swing', swingAmt: 20, selfRot: 'wobble', selfRotAmt: 15, boil: true, boilFps: 8, twinkle: 0, bob: 0 }] },
     { name: 'Spiral cloud', layers: [{ shape: 'spiral', color: '#ffe14d', color2: '#ff5fa2', mixColors: true, strokeWidth: .09, wobble: .4, layout: 'cloud', count: 12, size: .045, sizeVar: .6, rotVar: 1, rx: .55, ry: .5, tilt: 0, hole: .35, depth: 'wrap', motion: 'swing', swingAmt: 10, selfRot: 'spin', twinkle: 0, bob: 0, boil: true, boilFps: 5 }] },
-    { name: 'Asterisk rain', layers: [{ shape: 'asterisk', color: '#ffffff', strokeWidth: .12, wobble: .4, layout: 'grid', spacing: .15, stagger: true, jitter: .6, size: .03, sizeVar: .5, rotVar: 1, depth: 'behind', motion: 'spin', drift: 'down', speed: 1, selfRot: 'spin', twinkle: 0, bob: 0, boil: true, boilFps: 5 }] },
+    { name: 'Asterisk rain', layers: [{ shape: 'asterisk', color: '#ffffff', strokeWidth: .12, wobble: .4, layout: 'grid', spacing: .15, stagger: true, jitter: .6, size: .03, sizeVar: .5, rotVar: 1, depth: 'behind', motion: 'spin', drift: 'down', speed: 0.25, selfRot: 'spin', twinkle: 0, bob: 0, boil: true, boilFps: 5 }] },
   ] },
   { name: '🌌 Atmosphere', presets: [
-    { name: 'Cosmic dust', layers: [{ shape: 'star4', color: '#ffffff', color2: '#c4b5ff', mixColors: true, glow: .8, glowColor: '#a78bfa', count: 40, size: .022, sizeVar: .8, thick: .2, wobble: .1, rotVar: .3, layout: 'scatter', depth: 'wrap', backScale: .7, backFade: .2, motion: 'swing', swingAmt: 20, speed: 1, selfRot: 'none', twinkle: .5, bob: .5, boil: false }] },
-    { name: 'Snow', layers: [{ shape: 'dot', color: '#ffffff', wobble: .2, glow: .3, glowColor: '#ffffff', layout: 'grid', spacing: .1, stagger: true, jitter: 1, size: .012, sizeVar: .8, rotVar: 0, depth: 'wrap', backScale: .7, backFade: .3, motion: 'spin', drift: 'down', speed: 1, selfRot: 'none', twinkle: 0, bob: .5, boil: false }] },
+    { name: 'Cosmic dust', layers: [{ shape: 'star4', color: '#ffffff', color2: '#c4b5ff', mixColors: true, glow: .8, glowColor: '#a78bfa', count: 40, size: .022, sizeVar: .8, thick: .2, wobble: .1, rotVar: .3, layout: 'scatter', depth: 'wrap', backScale: .7, backFade: .2, motion: 'swing', swingAmt: 20, speed: 0.25, selfRot: 'none', twinkle: .5, bob: .5, boil: false }] },
+    { name: 'Snow', layers: [{ shape: 'dot', color: '#ffffff', wobble: .2, glow: .3, glowColor: '#ffffff', layout: 'grid', spacing: .1, stagger: true, jitter: 1, size: .012, sizeVar: .8, rotVar: 0, depth: 'wrap', backScale: .7, backFade: .3, motion: 'spin', drift: 'down', speed: 0.25, selfRot: 'none', twinkle: 0, bob: .5, boil: false }] },
     { name: 'Glitter', layers: [{ shape: 'star4', color: '#ffd700', color2: '#fff6c2', mixColors: true, thick: .15, wobble: .1, glow: .7, glowColor: '#ffcc33', layout: 'scatter', count: 50, size: .018, sizeVar: .9, rotVar: .2, depth: 'wrap', backScale: .8, ...STILL, twinkle: .6 }] },
   ] },
 ];
@@ -454,7 +484,12 @@ function customFor(g, color) {
 }
 
 // ───────────────────────── scene elements
-const boilVariant = (g, t) => { const steps = Math.max(1, Math.round(g.boilFps * S.loop)); return g.boil ? Math.floor((t / S.loop) * steps) % 3 : 0; };
+// Motion runs in real time (speed = cycles per second). Only while exporting are speeds snapped to a
+// whole number of cycles per clip (snapLen), so videos and GIFs loop without a seam.
+let snapLen = 0;
+const rate = v => snapLen ? Math.max(1, Math.round(v * snapLen)) / snapLen : v;
+const SEC_RATE = 0.25; // base rate for twinkle / wiggle / float / self-spin
+const boilVariant = (g, t) => g.boil ? Math.floor(t * g.boilFps) % 3 : 0;
 function pushEl(out, g, i, v, x, y, d, R, ph, o = {}) {
   const behind = o.behind ?? (g.depth === 'wrap' ? d < 0 : g.depth === 'behind');
   const dt = o.flat ? 1 : (d + 1) / 2;
@@ -469,12 +504,12 @@ function pushEl(out, g, i, v, x, y, d, R, ph, o = {}) {
 }
 const DRIFTS = { right: [1, 0], left: [-1, 0], down: [0, 1], up: [0, -1], diag: [1, 1] };
 function gridElements(g, t, out) {
-  const ph = TAU * t / S.loop, v = boilVariant(g, t);
+  const pm = TAU * t * rate(g.speed), ps = TAU * t * rate(SEC_RATE), v = boilVariant(g, t);
   const sp = Math.max(0.04, g.spacing) * D, rh = g.stagger ? sp * 0.866 : sp;
   const P = 4; // per-cell randomness repeats every P cells, so drifting patterns loop seamlessly
   let ox = (g.cx - 0.5) * W, oy = (g.cy - 0.5) * H;
-  if (g.motion === 'spin') { const [dx, dy] = DRIFTS[g.drift] || DRIFTS.diag, f = (t / S.loop) * g.speed; ox += dx * f * P * sp; oy += dy * f * P * rh; }
-  else if (g.motion === 'swing') ox += Math.sin(ph * g.speed) * sp * (g.swingAmt / 90);
+  if (g.motion === 'spin') { const [dx, dy] = DRIFTS[g.drift] || DRIFTS.diag, f = t * rate(g.speed); ox += dx * f * P * sp; oy += dy * f * P * rh; }
+  else if (g.motion === 'swing') ox += Math.sin(pm) * sp * (g.swingAmt / 90);
   const pX = P * sp, pY = P * rh;
   ox = ((ox % pX) + pX) % pX - pX; oy = ((oy % pY) + pY) % pY - pY;
   const cols = Math.ceil((W - ox) / sp) + 2, rows = Math.ceil((H - oy) / rh) + 2;
@@ -487,28 +522,28 @@ function gridElements(g, t, out) {
     const y = oy + rI * rh + (R.jy - .5) * g.jitter * rh * 0.9;
     if (x < -sp || x > W + sp || y < -sp || y > H + sp) continue;
     const wrap = g.depth === 'wrap';
-    pushEl(out, g, rm * P + cm, v, x, y, wrap ? (R.dep < 0.5 ? -1 : 1) : 0, R, ph, { flat: !wrap });
+    pushEl(out, g, rm * P + cm, v, x, y, wrap ? (R.dep < 0.5 ? -1 : 1) : 0, R, ps, { flat: !wrap });
   }
 }
 function groupElements(g, t, out) {
   if (g.layout === 'grid') return gridElements(g, t, out);
-  const r = rng(g.seed), ph = TAU * t / S.loop, v = boilVariant(g, t);
+  const r = rng(g.seed), pm = TAU * t * rate(g.speed), ps = TAU * t * rate(SEC_RATE), v = boilVariant(g, t);
   const spot = g.layout === 'spot', n = spot ? 1 : g.count, tl = g.tilt * Math.PI / 180;
   for (let i = 0; i < n; i++) {
     const R = { a: r(), rj: r(), sz: r(), ph: r() * TAU, kind: r(), col: r(), rot: r(), sx: r(), sy: r(), dep: r(), dir: r() };
     if (spot) {
       let rot = 0;
-      if (g.motion === 'swing') rot = Math.sin(ph * g.speed) * g.swingAmt * Math.PI / 180 * g.spinDir;
-      else if (g.motion === 'spin') rot = ph * g.speed * g.spinDir;
-      pushEl(out, g, i, v, g.cx * W, g.cy * H, 0, { ...R, sz: 0.5, rot: 0.5 }, ph, { behind: g.depth !== 'front', flat: true, rot });
+      if (g.motion === 'swing') rot = Math.sin(pm) * g.swingAmt * Math.PI / 180 * g.spinDir;
+      else if (g.motion === 'spin') rot = pm * g.spinDir;
+      pushEl(out, g, i, v, g.cx * W, g.cy * H, 0, { ...R, sz: 0.5, rot: 0.5 }, ps, { behind: g.depth !== 'front', flat: true, rot });
       continue;
     }
     let x, y, d;
     if (g.layout === 'ring' || g.layout === 'cloud') {
       const cloud = g.layout === 'cloud';
       let th = cloud ? R.a * TAU : -Math.PI / 2 + i * TAU / n + (R.a - .5) * g.jitter * (TAU / n);
-      if (g.motion === 'swing') th += (g.swingAmt * Math.PI / 180) * Math.sin(ph * g.speed);
-      else if (g.motion === 'spin') th += ph * g.speed * g.spinDir;
+      if (g.motion === 'swing') th += (g.swingAmt * Math.PI / 180) * Math.sin(pm);
+      else if (g.motion === 'spin') th += pm * g.spinDir;
       const rj = cloud ? lerp(g.hole, 1, Math.sqrt(R.rj)) : 1 + (R.rj - .5) * g.jitter * 0.5;
       const lx = Math.cos(th) * g.rx * D * rj, ly = Math.sin(th) * g.ry * D * rj;
       x = g.cx * W + lx * Math.cos(tl) - ly * Math.sin(tl);
@@ -517,11 +552,11 @@ function groupElements(g, t, out) {
     } else {
       x = (0.04 + R.sx * 0.92) * W; y = (0.04 + R.sy * 0.92) * H;
       const amp = g.swingAmt / 90 * D * 0.06;
-      if (g.motion === 'swing') x += Math.sin(ph * g.speed + R.ph) * amp;
-      else if (g.motion === 'spin') { const a = ph * g.speed * g.spinDir + R.ph; x += Math.cos(a) * amp; y += Math.sin(a) * amp; }
+      if (g.motion === 'swing') x += Math.sin(pm + R.ph) * amp;
+      else if (g.motion === 'spin') { const a = pm * g.spinDir + R.ph; x += Math.cos(a) * amp; y += Math.sin(a) * amp; }
       d = R.dep < 0.5 ? -1 : 1;
     }
-    pushEl(out, g, i, v, x, y, d, R, ph);
+    pushEl(out, g, i, v, x, y, d, R, ps);
   }
 }
 function drawEl(c, e) {
@@ -604,26 +639,45 @@ function buildSubj() {
   if (!S.hasCutout) { c.restore(); return; }
   let base = cutCanvas;
   if (sub.outline > 0) {
-    const sil = mk(SW, SH), sx = sil.getContext('2d');
-    sx.drawImage(cutCanvas, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = sub.outlineColor; sx.fillRect(0, 0, SW, SH);
-    const o = mk(SW, SH), ox = o.getContext('2d'), rad = sub.outline * D / 800;
-    for (let k = 0; k < 24; k++) { const a = k * TAU / 24; ox.drawImage(sil, Math.cos(a) * rad, Math.sin(a) * rad); }
-    ox.drawImage(sil, 0, 0); ox.drawImage(cutCanvas, 0, 0); base = o;
+    const o = outlineCanvas(cutCanvas, sub.outline * D / 800, sub.outlineColor);
+    o.getContext('2d').drawImage(cutCanvas, 0, 0); base = o;
   }
   if (sub.glow > 0) { c.shadowColor = sub.glowColor; c.shadowBlur = sub.glow * D * 0.05; c.drawImage(base, 0, 0); c.drawImage(base, 0, 0); }
   if (sub.shadow > 0) { c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = sub.shadow * D * 0.04; c.shadowOffsetX = sub.shadow * D * 0.015; c.shadowOffsetY = sub.shadow * D * 0.02; }
   c.drawImage(base, 0, 0);
   c.restore();
 }
-function ensureCaches() {
+// Sticker outline. The old version stamped the cutout 24× in a circle, which multiplied faint, noisy
+// mask pixels in the background into visible streaks. Now: threshold to a clean binary silhouette,
+// then grow it with blur + threshold, which gives a smooth, round, artifact-free edge.
+function outlineCanvas(src, rad, color) {
+  const sil = mk(SW, SH), sx = sil.getContext('2d', { willReadFrequently: true });
+  sx.drawImage(src, 0, 0);
+  let id = sx.getImageData(0, 0, SW, SH), d = id.data;
+  for (let i = 3; i < d.length; i += 4) { d[i - 3] = d[i - 2] = d[i - 1] = 255; d[i] = d[i] > 128 ? 255 : 0; }
+  sx.putImageData(id, 0, 0);
+  const o = mk(SW, SH), ox = o.getContext('2d', { willReadFrequently: true });
+  ox.filter = `blur(${Math.max(0.6, rad / 2)}px)`; ox.drawImage(sil, 0, 0); ox.filter = 'none';
+  id = ox.getImageData(0, 0, SW, SH); d = id.data;
+  const [cr, cg, cb] = hexRgb(color), t0 = 3, t1 = 16;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = d[i + 3];
+    d[i] = cr; d[i + 1] = cg; d[i + 2] = cb; d[i + 3] = v <= t0 ? 0 : v >= t1 ? 255 : Math.round((v - t0) / (t1 - t0) * 255);
+  }
+  ox.putImageData(id, 0, 0);
+  sx.globalCompositeOperation = 'source-in'; sx.fillStyle = color; sx.fillRect(0, 0, SW, SH);
+  ox.drawImage(sil, 0, 0); // guarantee thin parts (fingers, hair strands) are fully covered
+  return o;
+}
+function ensureCaches(skipSubj) {
   if (dirty.cut) { buildCut(); dirty.cut = false; dirty.subj = true; }
-  if (dirty.subj) { buildSubj(); dirty.subj = false; }
+  if (dirty.subj && !skipSubj) { buildSubj(); dirty.subj = false; }
   if (dirty.bg) { buildBg(); dirty.bg = false; }
 }
 
 // ───────────────────────── render
 function render(c, t, opt = {}) {
-  ensureCaches();
+  ensureCaches(!opt.export && S.img && (S.tool === 'erase' || S.tool === 'restore'));
   // opt.full = show the whole uncropped image (crop tool). Otherwise draw only the crop frame.
   const full = !!opt.full, ox = full ? 0 : -crop.x, oy = full ? 0 : -crop.y;
   c.clearRect(0, 0, full ? SW : W, full ? SH : H);
@@ -787,7 +841,7 @@ function cancelCrop() { cropDraft = null; setTool('move'); }
 let t0 = performance.now(), tNow = 0, recording = false;
 function frame(now) {
   if (S.playing) tNow = (now - t0) / 1000;
-  render(ctx, tNow % S.loop, { guides: S.guides && !recording, full: S.tool === 'crop' });
+  render(ctx, tNow, { guides: S.guides && !recording, full: S.tool === 'crop' });
   requestAnimationFrame(frame);
 }
 function restartClock() { t0 = performance.now(); tNow = 0; }
@@ -838,7 +892,10 @@ async function magicCutout() {
     });
     const im = await blobToImage(out);
     pushUndo();
-    const m = S.mask.getContext('2d'); m.clearRect(0, 0, SW, SH); m.drawImage(im, 0, 0, SW, SH);
+    const m = S.mask.getContext('2d', { willReadFrequently: true }); m.clearRect(0, 0, SW, SH); m.drawImage(im, 0, 0, SW, SH);
+    const md = m.getImageData(0, 0, SW, SH), mdd = md.data;
+    for (let i = 3; i < mdd.length; i += 4) if (mdd[i] < 24) mdd[i] = 0;
+    m.putImageData(md, 0, 0);
     S.hasCutout = true; dirty.cut = true;
     toast('Cutout ready. Objects can now go behind you ✦');
   } catch (e) {
@@ -993,10 +1050,77 @@ function updateHint() {
   else el.textContent = 'Drag on the photo to move the selected layer. For rings and clouds, drag the white dots to resize and tilt.';
 }
 
+// ───────────────────────── color picker (custom popover, always kept inside the window)
+const SWATCHES = ['#111111', '#ffffff', '#9a9aa8', '#e8141b', '#ff1a1a', '#ff5fa2', '#ff1fb4', '#ff8a00', '#ffd23f', '#c6ff3d', '#3ddc97', '#7fd3e6', '#3fa7ff', '#2b6bff', '#8b7bff', '#a78bfa'];
+function hexRgb(hx) { const n = parseInt((hx || '#000000').slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgbHex(r, g, b) { return '#' + [r, g, b].map(x => Math.round(clamp(x, 0, 255)).toString(16).padStart(2, '0')).join(''); }
+function rgbHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let hh = 0;
+  if (d) { hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; hh *= 60; if (hh < 0) hh += 360; }
+  return [hh, mx ? d / mx : 0, mx];
+}
+function hsvHex(hh, sat, val) { const f = n => { const k = (n + hh / 60) % 6; return val - val * sat * Math.max(0, Math.min(k, 4 - k, 1)); }; return rgbHex(f(5) * 255, f(3) * 255, f(1) * 255); }
+let picker = null;
+function colorButton(obj, key, onChange) {
+  const b = h('button', 'swatch'); b.type = 'button'; b.style.background = obj[key]; b.title = obj[key];
+  b.onclick = e => { e.preventDefault(); e.stopPropagation(); if (picker && picker.btn === b) closePicker(); else openPicker(b, obj, key, onChange); };
+  return b;
+}
+function closePicker() {
+  if (!picker) return;
+  picker.el.remove(); document.removeEventListener('pointerdown', picker.onDoc, true); window.removeEventListener('keydown', picker.onKey, true);
+  window.removeEventListener('resize', picker.place); picker = null;
+}
+function openPicker(btn, obj, key, onChange) {
+  closePicker();
+  const el = h('div', 'picker');
+  el.innerHTML = '<div class="sv"><div class="svk"></div></div><div class="hue"><div class="huek"></div></div><div class="prow"><span class="pv"></span><input type="text" class="phex" maxlength="7" spellcheck="false" aria-label="Hex color"></div><div class="psw"></div>';
+  document.body.append(el);
+  let [hh, sat, val] = rgbHsv(...hexRgb(obj[key]));
+  const sv = el.querySelector('.sv'), svk = el.querySelector('.svk'), hue = el.querySelector('.hue'), huek = el.querySelector('.huek'), pv = el.querySelector('.pv'), hex = el.querySelector('.phex');
+  const paint = (fromHex) => {
+    const c = hsvHex(hh, sat, val);
+    sv.style.backgroundColor = `hsl(${hh},100%,50%)`; svk.style.left = sat * 100 + '%'; svk.style.top = (1 - val) * 100 + '%'; huek.style.left = hh / 360 * 100 + '%';
+    pv.style.background = c; if (!fromHex) hex.value = c;
+    return c;
+  };
+  const commit = (c) => { obj[key] = c; btn.style.background = c; btn.title = c; onChange(); };
+  const drag = (area, fn) => area.addEventListener('pointerdown', e => {
+    area.setPointerCapture(e.pointerId); const move = ev => { const r = area.getBoundingClientRect(); fn(clamp((ev.clientX - r.left) / r.width, 0, 1), clamp((ev.clientY - r.top) / r.height, 0, 1)); commit(paint()); };
+    move(e); area.onpointermove = move; area.onpointerup = () => { area.onpointermove = null; };
+  });
+  drag(sv, (x, y) => { sat = x; val = 1 - y; });
+  drag(hue, x => { hh = Math.min(359.9, x * 360); });
+  hex.oninput = () => { let v = hex.value.trim(); if (!v.startsWith('#')) v = '#' + v; if (/^#[0-9a-f]{6}$/i.test(v)) { [hh, sat, val] = rgbHsv(...hexRgb(v)); paint(true); commit(v.toLowerCase()); } };
+  const sw = el.querySelector('.psw');
+  for (const c of SWATCHES) { const b = h('button'); b.type = 'button'; b.style.background = c; b.title = c; b.onclick = () => { [hh, sat, val] = rgbHsv(...hexRgb(c)); paint(); commit(c); }; sw.append(b); }
+  if (window.EyeDropper && S.img) {
+    const b = h('button', 'pick', '⊙'); b.type = 'button'; b.title = 'Pick a color from the screen';
+    b.onclick = async () => { try { const r = await new EyeDropper().open(); [hh, sat, val] = rgbHsv(...hexRgb(r.sRGBHex)); paint(); commit(r.sRGBHex); } catch { } };
+    sw.append(b);
+  }
+  paint();
+  const place = () => {
+    const r = btn.getBoundingClientRect(), pw = el.offsetWidth, ph = el.offsetHeight, m = 8;
+    let left = clamp(r.right - pw, m, innerWidth - pw - m), top = r.bottom + 6;
+    if (top + ph > innerHeight - m) top = r.top - ph - 6;
+    el.style.left = left + 'px'; el.style.top = clamp(top, m, Math.max(m, innerHeight - ph - m)) + 'px';
+  };
+  place();
+  const onDoc = e => { if (!el.contains(e.target) && e.target !== btn) closePicker(); };
+  const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); closePicker(); } };
+  document.addEventListener('pointerdown', onDoc, true); window.addEventListener('keydown', onKey, true); window.addEventListener('resize', place);
+  picker = { el, btn, onDoc, onKey, place };
+}
+document.addEventListener('scroll', e => { if (picker && !picker.el.contains(e.target)) closePicker(); }, true);
+
 // ───────────────────────── UI builder
 const fmtNum = (f, v) => f.fmt ? f.fmt(v) : (f.step && f.step < 1 ? (+v).toFixed(f.step < 0.1 ? 2 : 1) : String(v));
 function buildFields(container, schema, defObj, onChange) {
   container.innerHTML = '';
+  const objOf = f => f.obj ? f.obj() : defObj;
+  const visible = () => schema.map(f => f.sec ? '' : (!f.show || f.show(objOf(f))) ? 1 : 0).join('');
+  const shown = visible();
   let sec = null;
   for (const f of schema) {
     if (f.sec) { sec = h('div', 'sec', h('h4', null, f.sec)); container.append(sec); continue; }
@@ -1010,15 +1134,15 @@ function buildFields(container, schema, defObj, onChange) {
       const inp = h('input'); inp.type = 'range'; inp.min = f.min; inp.max = f.max; inp.step = f.step ?? 1; inp.value = obj[f.k]; inp.dataset.k = f.k;
       const out = h('output', null, fmtNum(f, obj[f.k]));
       inp.oninput = () => { obj[f.k] = +inp.value; out.textContent = fmtNum(f, obj[f.k]); onChange(f, false); };
-      row = h('label', 'field', [h('div', 'labrow', [lab, out]), inp]);
+      inp.onchange = () => { if (visible() !== shown) onChange(f, true); };
+      row = h('div', 'field', [h('div', 'labrow', [lab, out]), inp]);
     } else if (f.t === 'select') {
       const sel = h('select'); (typeof f.o === 'function' ? f.o(obj) : f.o).forEach(([v, l]) => { const o = h('option', null, l); o.value = v; sel.append(o); }); sel.value = String(obj[f.k]);
       sel.onchange = () => { obj[f.k] = f.num ? +sel.value : sel.value; onChange(f, true); };
       row = h('label', 'field', [h('div', 'labrow', lab), sel]);
     } else if (f.t === 'color') {
-      const inp = h('input'); inp.type = 'color'; inp.value = obj[f.k];
-      inp.oninput = () => { obj[f.k] = inp.value; onChange(f, false); };
-      row = h('label', 'field inline', [lab, inp]);
+      const btn = colorButton(obj, f.k, () => onChange(f, visible() !== shown));
+      row = h('div', 'field inline', [lab, btn]);
     } else if (f.t === 'check') {
       const inp = h('input'); inp.type = 'checkbox'; inp.checked = !!obj[f.k];
       inp.onchange = () => { obj[f.k] = inp.checked; onChange(f, true); };
@@ -1088,7 +1212,7 @@ const groupSchema = [
   { k: 'motion', l: 'Movement', t: 'select', o: g => MOTIONS[g.layout] || MOTIONS.other },
   { k: 'drift', l: 'Drift direction', t: 'select', o: [['diag', '↘ Diagonal'], ['right', '→ Right'], ['left', '← Left'], ['down', '↓ Down (falling)'], ['up', '↑ Up (rising)']], show: g => g.layout === 'grid' && g.motion === 'spin' },
   { k: 'swingAmt', l: g => g.layout === 'ring' || g.layout === 'cloud' || g.layout === 'spot' ? 'Swing amount' : 'Sway amount', t: 'range', min: 0, max: 180, step: 1, show: g => g.motion === 'swing' || (g.motion === 'spin' && g.layout === 'scatter'), fmt: deg },
-  { k: 'speed', l: 'Speed (cycles per loop)', t: 'range', min: 1, max: 4, step: 1, show: g => g.motion !== 'still' },
+  { k: 'speed', l: 'Speed', t: 'range', min: 0.05, max: 2, step: 0.05, show: g => g.motion !== 'still', fmt: v => `1 cycle / ${(1 / v).toFixed(v > 0.5 ? 2 : 1)} s` },
   { k: 'spinDir', l: 'Direction', t: 'select', num: true, o: [['1', 'Clockwise'], ['-1', 'Counter-clockwise']], show: g => (g.motion === 'spin' && g.layout !== 'grid') || (g.motion === 'swing' && g.layout === 'spot') },
   { k: 'selfRot', l: 'Each object', t: 'select', o: [['none', 'Doesn\'t rotate'], ['wobble', 'Wiggles'], ['spin', 'Spins']] },
   { k: 'selfRotAmt', l: 'Wiggle amount', t: 'range', min: 0, max: 60, step: 1, show: g => g.selfRot === 'wobble', fmt: deg },
@@ -1101,7 +1225,7 @@ function buildGroupPanel() {
   const g = curG(); const el = $('#groupControls');
   if (!g) { el.innerHTML = '<p class="muted" style="padding-top:14px">No layers. Add one above.</p>'; return; }
   buildFields(el, groupSchema, g, (f, structural) => {
-    if (structural || f.k === 'glow' || f.k === 'style') buildGroupPanel();
+    if (structural) buildGroupPanel();
     if (f.k === 'color' || f.k === 'color2' || f.k === 'shape' || f.k === 'name') buildLayers();
   });
 }
@@ -1125,10 +1249,35 @@ function buildLayers() {
 }
 function refreshAll() { buildLayers(); buildGroupPanel(); }
 
-let presetCat = 0;
+let presetCat = 1; // 0 = ★ Mine
 const thumbCache = new Map();
+const USER_KEY = 'orbit-studio.presets.v1';
+function loadUserPresets() { try { const v = JSON.parse(localStorage.getItem(USER_KEY)); return Array.isArray(v) ? v : []; } catch { return []; } }
+function storeUserPresets(list) {
+  try { localStorage.setItem(USER_KEY, JSON.stringify(list)); return true; }
+  catch { toast('Couldn\'t save. Browser storage is blocked or full.', 4000); return false; }
+}
+function serializeLayer(g) {
+  const o = { seed: g.seed };
+  for (const k of Object.keys(DEFAULT_GROUP)) o[k] = g[k];
+  if (g.customImg) try { o.customImg = g.customImg.toDataURL('image/png'); } catch { }
+  return o;
+}
+function saveCurrentAsPreset(name) {
+  name = (name || '').trim(); if (!name) { toast('Give your preset a name'); return false; }
+  if (!S.groups.length) { toast('Add at least one layer first'); return false; }
+  const list = loadUserPresets(), i = list.findIndex(x => x.name === name);
+  const preset = { name, savedAt: Date.now(), layers: S.groups.map(serializeLayer), look: { bg: { ...S.bg }, subject: { ...S.subject } } };
+  if (i >= 0) list[i] = preset; else list.unshift(preset);
+  if (!storeUserPresets(list)) return false;
+  presetCat = 0; buildPresets(); toast(i >= 0 ? `Updated “${name}”` : `Saved “${name}” to My presets`); return true;
+}
+function deleteUserPreset(name) { storeUserPresets(loadUserPresets().filter(x => x.name !== name)); buildPresets(); toast(`Deleted “${name}”`); }
+function loadCustomInto(g, url) { const im = new Image(); im.onload = () => { const c = mk(im.width, im.height); c.getContext('2d').drawImage(im, 0, 0); g.customImg = c; g._tints = new Map(); }; im.src = url; }
+function presetCats() { return [{ name: '★ Mine', user: true, presets: loadUserPresets() }, ...PRESET_CATS]; }
 function presetThumb(p) {
-  if (thumbCache.has(p.name)) return thumbCache.get(p.name);
+  const tkey = p.name + '|' + (p.savedAt || '');
+  if (thumbCache.has(tkey)) return thumbCache.get(tkey);
   const Z = 120, c = mk(Z, Z), x = c.getContext('2d');
   const L = p.layers.map((l, k) => ({ ...DEFAULT_GROUP, ...l, seed: 9001 + k * 77, _tints: new Map() }));
   const lum = hex => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
@@ -1157,22 +1306,40 @@ function presetThumb(p) {
     }
   });
   back.forEach(e => drawEl(x, e)); person(); front.forEach(e => drawEl(x, e));
-  thumbCache.set(p.name, c); return c;
+  thumbCache.set(tkey, c); return c;
 }
 function applyPreset(p) {
-  const layers = p.layers.map(l => newGroup({ ...l }));
+  const layers = p.layers.map(l => {
+    const g = newGroup({ ...l, customImg: null });
+    if (l.seed) g.seed = l.seed; // saved presets keep their exact look
+    if (typeof l.customImg === 'string') loadCustomInto(g, l.customImg);
+    return g;
+  });
   if ($('#presetAdd').checked) { S.groups.push(...layers); S.sel = S.groups.length - layers.length; }
-  else { S.groups = layers; S.sel = 0; }
+  else {
+    S.groups = layers; S.sel = 0;
+    if (p.look) { Object.assign(S.bg, p.look.bg); Object.assign(S.subject, p.look.subject); dirty.bg = dirty.cut = dirty.subj = true; buildLook(); }
+  }
   refreshAll(); toast(`✦ ${p.name}${layers.length > 1 ? ` (${layers.length} layers)` : ''}`);
 }
 function buildPresets() {
   const cats = $('#presetCats'); cats.innerHTML = '';
-  PRESET_CATS.forEach((cat, i) => { const b = h('button', 'chip' + (i === presetCat ? ' on' : ''), cat.name); b.onclick = () => { presetCat = i; buildPresets(); }; cats.append(b); });
+  const CATS = presetCats(); presetCat = Math.min(presetCat, CATS.length - 1);
+  CATS.forEach((cat, i) => { const b = h('button', 'chip' + (i === presetCat ? ' on' : ''), cat.name); b.onclick = () => { presetCat = i; buildPresets(); }; cats.append(b); });
   const sur = h('button', 'chip', '🎲 Surprise me'); sur.onclick = surprise; cats.append(sur);
   const grid = $('#presets'); grid.innerHTML = '';
-  for (const p of PRESET_CATS[presetCat].presets) {
-    const card = h('button', 'pcard', [presetThumb(p), h('span', null, p.name)]); card.title = p.layers.length > 1 ? `${p.layers.length} layers` : '';
-    card.onclick = () => applyPreset(p); grid.append(card);
+  const cat = CATS[presetCat];
+  if (cat.user && !cat.presets.length) grid.append(h('p', 'muted pempty', 'No saved presets yet. Set up your layers and look, then press “💾 Save current as preset” below. Saved presets stay in this browser.'));
+  for (const p of cat.presets) {
+    const card = h('div', 'pcard', [presetThumb(p), h('span', null, p.name)]); card.tabIndex = 0; card.setAttribute('role', 'button');
+    card.title = p.layers.length > 1 ? `${p.layers.length} layers` : '';
+    card.onclick = () => applyPreset(p); card.onkeydown = e => { if (e.key === 'Enter') applyPreset(p); };
+    if (cat.user) {
+      const del = h('button', 'pdel', '✕'); del.type = 'button'; del.title = 'Delete preset';
+      del.onclick = e => { e.stopPropagation(); if (del.classList.contains('armed')) deleteUserPreset(p.name); else { del.classList.add('armed'); del.textContent = 'Delete?'; setTimeout(() => { del.classList.remove('armed'); del.textContent = '✕'; }, 2500); } };
+      card.append(del);
+    }
+    grid.append(card);
   }
 }
 function surprise() {
@@ -1212,15 +1379,13 @@ const lookSchema = [
   { k: 'shadow', obj: () => S.subject, l: 'Drop shadow', t: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
   { k: 'glow', obj: () => S.subject, l: 'Glow', t: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
   { k: 'glowColor', obj: () => S.subject, l: 'Glow color', t: 'color', show: s => s.glow > 0 },
-  { sec: 'Animation' },
-  { k: 'loop', obj: () => S, l: 'Loop length', t: 'range', min: 1, max: 12, step: 0.5, fmt: v => v + ' s' },
 ];
 const subjTimer = { id: 0 };
 function buildLook() {
   buildFields($('#lookFields'), lookSchema, S, (f, structural) => {
     if (f.obj && f.obj() === S.bg) dirty.bg = true;
     if (f.obj && f.obj() === S.subject) { if (f.k === 'look') dirty.cut = true; else dirty.subj = true; }
-    if (structural || ['outline', 'glow'].includes(f.k)) buildLook();
+    if (structural) buildLook();
   });
 }
 function buildCutoutPane() {
@@ -1234,6 +1399,7 @@ function buildCutoutPane() {
   ], S, f => { if (f.k === 'feather') dirty.cut = true; if (f.k === 'brush') syncBrushUI(); });
 }
 function buildExportPane() {
+  buildFields($('#loopFields'), [{ k: 'loop', l: 'Loop length', t: 'range', min: 1, max: 12, step: 0.5, fmt: v => v + ' s' }], S, () => { });
   buildFields($('#videoFields'), [{ k: 'loops', l: 'Length', t: 'select', num: true, o: [['1', '1 loop'], ['2', '2 loops'], ['3', '3 loops'], ['5', '5 loops']] }], S.video, () => { });
   buildFields($('#gifFields'), [
     { k: 'width', l: 'Width', t: 'select', num: true, o: [['320', '320 px'], ['480', '480 px'], ['640', '640 px'], ['800', '800 px']] },
@@ -1293,7 +1459,7 @@ function setExportStatus(t) { $('#exportStatus').textContent = t; }
 function needImg() { if (!S.img) { toast('Open a photo first.'); return false; } return true; }
 $('#btnPng').onclick = () => {
   if (!needImg()) return;
-  const c = mk(W, H); render(c.getContext('2d'), tNow % S.loop, { export: true });
+  const c = mk(W, H); render(c.getContext('2d'), tNow, { export: true });
   c.toBlob(b => download(b, 'orbit.png'), 'image/png');
 };
 $('#btnVideo').onclick = async () => {
@@ -1307,14 +1473,14 @@ $('#btnVideo').onclick = async () => {
   const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12e6 });
   const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   const done = new Promise(r => rec.onstop = r);
-  recording = true; S.playing = true; syncPlay(); restartClock();
+  recording = true; snapLen = S.loop; S.playing = true; syncPlay(); restartClock();
   rec.start(250);
   const total = S.loop * S.video.loops;
   const btn = $('#btnVideo'); btn.disabled = true;
   const iv = setInterval(() => setExportStatus(`Recording… ${Math.min(total, tNow).toFixed(1)} / ${total} s`), 200);
   await sleep(total * 1000 + 120);
   rec.stop(); await done; clearInterval(iv);
-  recording = false; btn.disabled = false; setTool(prevTool);
+  recording = false; snapLen = 0; btn.disabled = false; setTool(prevTool);
   download(new Blob(chunks, { type: mime }), 'orbit.' + (mime.includes('mp4') ? 'mp4' : 'webm'));
   setExportStatus('✓ Video saved.');
 };
@@ -1327,18 +1493,18 @@ $('#btnGif').onclick = async () => {
     const gw = Math.min(S.gif.width, W), sc = gw / W, gh = Math.round(H * sc);
     const c = mk(gw, gh), x = c.getContext('2d', { willReadFrequently: true });
     const fps = S.gif.fps, n = Math.round(S.loop * fps), gif = GIFEncoder();
-    RS = sc;
+    RS = sc; snapLen = S.loop;
     for (let i = 0; i < n; i++) {
       x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#000'; x.fillRect(0, 0, gw, gh);
-      x.setTransform(sc, 0, 0, sc, 0, 0); render(x, (i / fps) % S.loop, { export: true });
+      x.setTransform(sc, 0, 0, sc, 0, 0); render(x, i / fps, { export: true });
       const data = x.getImageData(0, 0, gw, gh).data, pal = quantize(data, 256), idx = applyPalette(data, pal);
       gif.writeFrame(idx, gw, gh, { palette: pal, delay: Math.round(1000 / fps) });
       if (i % 3 === 0) { RS = 1; setExportStatus(`Encoding GIF… ${Math.round(i / n * 100)}%`); await sleep(0); RS = sc; }
     }
-    RS = 1; gif.finish();
+    RS = 1; snapLen = 0; gif.finish();
     download(new Blob([gif.bytes()], { type: 'image/gif' }), 'orbit.gif');
     setExportStatus('✓ GIF saved.');
-  } catch (e) { console.error(e); RS = 1; setExportStatus('GIF failed: ' + e.message); }
+  } catch (e) { console.error(e); RS = 1; snapLen = 0; setExportStatus('GIF failed: ' + e.message); }
   btn.disabled = false;
 };
 
@@ -1358,6 +1524,14 @@ $('#btnClearCut').onclick = () => { if (!S.mask) return; pushUndo(); S.mask.getC
 function syncPlay() { const b = $('#btnPlay'); b.textContent = S.playing ? '❚❚ Pause' : '▶ Play'; }
 $('#btnPlay').onclick = () => { S.playing = !S.playing; if (S.playing) t0 = performance.now() - tNow * 1000; syncPlay(); };
 $('#btnGuides').onclick = e => { S.guides = !S.guides; e.currentTarget.classList.toggle('on', S.guides); };
+$('#btnSavePreset').onclick = () => {
+  const box = $('#saveBox'); box.classList.remove('hidden'); $('#btnSavePreset').classList.add('hidden');
+  const inp = $('#presetName'); inp.value = `My preset ${loadUserPresets().length + 1}`; inp.focus(); inp.select();
+};
+const closeSave = () => { $('#saveBox').classList.add('hidden'); $('#btnSavePreset').classList.remove('hidden'); };
+$('#saveCancel').onclick = closeSave;
+$('#saveOk').onclick = () => { if (saveCurrentAsPreset($('#presetName').value)) closeSave(); };
+$('#presetName').onkeydown = e => { if (e.key === 'Enter') $('#saveOk').click(); else if (e.key === 'Escape') closeSave(); };
 $('#addLayer').onclick = () => {
   const g = newGroup({ ...BASE_SPARKLES, count: 8, rx: 0.3, ry: 0.12, cy: 0.3, size: 0.05, color: '#ffffff', glow: 0.4, glowColor: '#ffffff' });
   S.groups.push(g); S.sel = S.groups.length - 1; refreshAll();
